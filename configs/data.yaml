@@ -1,0 +1,5 @@
+seed: 42
+n_test: 300
+n_dev: 100
+output_dir: data            # gitignored: corpus and eval sets
+test_ids_path: eval/test_ids.txt   # committed: the exact 300 test questions
