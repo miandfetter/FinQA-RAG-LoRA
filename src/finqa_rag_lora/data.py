@@ -50,6 +50,7 @@ def build_corpus(df: pd.DataFrame) -> pd.DataFrame:
 def sample_eval_set(df: pd.DataFrame, split: str, n: int, seed: int) -> pd.DataFrame:
     """A fixed random sample of questions from one split."""
     pool = df[df["split"] == split]
+    pool = pool[pool["question"].fillna("").str.strip() != ""]  # a few questions in the dataset are empty
     if n > len(pool):
         raise ValueError(f"Asked for {n} questions but split '{split}' only has {len(pool)}")
     sample = pool.sample(n=n, random_state=seed)
@@ -86,7 +87,8 @@ def main(config_path: str) -> None:
     ids_path.parent.mkdir(parents=True, exist_ok=True)
     ids_path.write_text("\n".join(test_set["id"]) + "\n")
 
-    print(f"questions loaded: {len(df)}")
+    empty = (df["question"].fillna("").str.strip() == "").groupby(df["split"]).sum()
+    print(f"questions loaded: {len(df)}  (empty, excluded from sampling: {dict(empty[empty > 0])})")
     print(f"corpus pages:     {len(corpus)}  -> {out / 'corpus.parquet'}")
     print(f"test sample:      {len(test_set)}  -> {out / 'eval_test.jsonl'}")
     print(f"dev sample:       {len(dev_set)}  -> {out / 'eval_dev.jsonl'}")

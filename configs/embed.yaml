@@ -1,0 +1,11 @@
+model: gemini-embedding-2       # check the exact model ID in the Gemini embeddings docs
+doc_task_type: RETRIEVAL_DOCUMENT
+query_task_type: RETRIEVAL_QUERY  # used later, when embedding questions
+output_dimensionality: null      # null = the model's default size
+batch_size: 1                  # set to 1 if the API rejects several texts per request
+requests_per_minute: 60          # pacing to stay under the quota; lower it if 429s continue
+max_retries: 8
+
+corpus_path: data/corpus.parquet
+vectors_path: data/doc_embeddings.npy
+ids_path: data/doc_ids.json      # doc_id order matching the vectors' rows

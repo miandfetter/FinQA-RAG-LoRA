@@ -66,6 +66,13 @@ def test_sample_is_deterministic(fake_df):
     assert list(a["id"]) == list(b["id"])
 
 
+def test_sample_skips_empty_questions(fake_df):
+    test_ids = fake_df.index[fake_df["split"] == "test"]
+    fake_df.loc[test_ids[:3], "question"] = ["", "   ", None]
+    sample = sample_eval_set(fake_df, "test", n=5, seed=0)  # 8 test questions, 3 empty -> 5 usable
+    assert (sample["question"].str.strip() != "").all()
+
+
 def test_sample_too_large_raises(fake_df):
     with pytest.raises(ValueError):
         sample_eval_set(fake_df, "test", n=1000, seed=0)

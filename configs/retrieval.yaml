@@ -1,0 +1,4 @@
+ks: [1, 3, 5, 10]              # recall@k is reported for each
+eval_dir: data                 # where eval_test.jsonl / eval_dev.jsonl live
+query_cache_dir: data          # cached question embeddings
+results_dir: results           # metrics + per-question results (commit the metrics)
