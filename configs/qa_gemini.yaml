@@ -1,0 +1,18 @@
+run_name: gemini_3.5_flash_lite          # results go to results/qa/<run_name>_<mode>_<split>/
+generator: gemini
+# Pin an exact model ID (not a "-latest" alias) so results stay reproducible. To list what your project can use:
+#   uv run python -c "from dotenv import load_dotenv; load_dotenv(); from google import genai; [print(m.name) for m in genai.Client().models.list() if 'flash' in m.name]"
+model: gemini-3.5-flash-lite
+temperature: 0
+max_output_tokens: 4096         # includes room for the model's reasoning
+thinking_budget: null           # null = model default; set a number to cap thinking tokens
+k: 3                            # pages per prompt in "retrieved" mode
+
+requests_per_minute: 60         # lower if you see many rate-limit waits
+concurrency: 4                  # questions in flight at once
+max_retries: 8
+
+corpus_path: data/corpus.parquet
+eval_dir: data
+retrieval_dir: results          # where retrieval_<split>.jsonl lives
+results_dir: results/qa

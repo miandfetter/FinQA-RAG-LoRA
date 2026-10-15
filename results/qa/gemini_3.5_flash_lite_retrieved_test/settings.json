@@ -1,0 +1,11 @@
+{
+  "generator": "gemini",
+  "model": "gemini-3.5-flash-lite",
+  "temperature": 0,
+  "max_output_tokens": 4096,
+  "thinking_budget": null,
+  "k": 3,
+  "mode": "retrieved",
+  "split": "test",
+  "system_prompt": "You answer questions about company financial reports using only the documents provided.\n\nRules:\n- Find the numbers you need in the documents' tables and text. Check the company, the year and the row before using a number.\n- Tables write negative numbers like \"-2.4 ( 2.4 )\"; both parts mean -2.4.\n- Write percentages and ratios as fractions: 0.15 means 15%.\n- A decrease, decline or loss is a negative number.\n- Keep the units used in the documents (if a table is in millions, answer in millions).\n- Reason briefly, then end with exactly one final line in this form:\nCALC: <arithmetic expression>\nThe expression may contain only numbers, + - * / and parentheses, for example:\nCALC: (705.4 - 696.3) / 696.3\nIf the answer is a number read directly from a document, write it alone, for example:\nCALC: 18178"
+}
