@@ -54,6 +54,66 @@ class GeminiGenerator:
         return Generation(text=resp.text or "", finish_reason=finish, usage=usage)
 
 
+class HFGenerator:
+    """A local open model (e.g. Qwen) on a GPU, optionally with a LoRA adapter on top.
+
+    Uses greedy decoding (the equivalent of temperature 0) and the model's own chat template,
+    with the same system prompt Gemini gets.
+    """
+
+    def __init__(self, model: str, adapter: str | None = None, max_new_tokens: int = 512,
+                 dtype: str = "bfloat16", load_in_4bit: bool = False, system_prompt: str = SYSTEM_PROMPT):
+        import torch
+        from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+
+        self.torch = torch
+        self.system_prompt = system_prompt
+        self.max_new_tokens = max_new_tokens
+        self.tokenizer = AutoTokenizer.from_pretrained(model)
+        self.tokenizer.padding_side = "left"  # batched generation needs prompts aligned on the right
+        if self.tokenizer.pad_token is None:
+            self.tokenizer.pad_token = self.tokenizer.eos_token
+
+        torch_dtype = getattr(torch, dtype)
+        kwargs = {"torch_dtype": torch_dtype}
+        if torch.cuda.is_available():
+            kwargs["device_map"] = "auto"
+        if load_in_4bit:
+            kwargs["quantization_config"] = BitsAndBytesConfig(
+                load_in_4bit=True, bnb_4bit_quant_type="nf4", bnb_4bit_compute_dtype=torch_dtype)
+        self.model = AutoModelForCausalLM.from_pretrained(model, **kwargs)
+        if adapter:
+            from peft import PeftModel
+            self.model = PeftModel.from_pretrained(self.model, adapter)
+        self.model.eval()
+
+    def render(self, prompt: str) -> str:
+        messages = [{"role": "system", "content": self.system_prompt}, {"role": "user", "content": prompt}]
+        return self.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+
+    def generate_batch(self, prompts: list[str]) -> list[Generation]:
+        enc = self.tokenizer([self.render(p) for p in prompts], return_tensors="pt", padding=True,
+                             add_special_tokens=False).to(self.model.device)
+        with self.torch.inference_mode():
+            # Pass only what the model uses (some tokenizers also return token_type_ids).
+            out = self.model.generate(input_ids=enc["input_ids"], attention_mask=enc["attention_mask"],
+                                      max_new_tokens=self.max_new_tokens, do_sample=False,
+                                      pad_token_id=self.tokenizer.pad_token_id)
+        new_tokens = out[:, enc["input_ids"].shape[1]:]
+        results = []
+        for i, row in enumerate(new_tokens):
+            n_out = int((row != self.tokenizer.pad_token_id).sum())
+            results.append(Generation(
+                text=self.tokenizer.decode(row, skip_special_tokens=True).strip(),
+                finish_reason="MAX_TOKENS" if n_out >= self.max_new_tokens else "STOP",
+                usage={"prompt_tokens": int(enc["attention_mask"][i].sum()), "output_tokens": n_out},
+            ))
+        return results
+
+    def __call__(self, prompt: str) -> Generation:
+        return self.generate_batch([prompt])[0]
+
+
 def call_with_retry(fn: Callable, arg, max_retries: int = 8, base_delay: float = 2.0,
                     sleep: Callable[[float], None] = time.sleep):
     """Call fn(arg), retrying rate limits (429) and server errors (5xx) with backoff."""
@@ -93,4 +153,7 @@ def make_generator(cfg: dict) -> Callable[[str], Generation]:
     if cfg["generator"] == "gemini":
         return GeminiGenerator(cfg["model"], cfg.get("temperature", 0.0), cfg.get("max_output_tokens", 4096),
                                cfg.get("thinking_budget"))
+    if cfg["generator"] == "hf":
+        return HFGenerator(cfg["model"], cfg.get("adapter"), cfg.get("max_new_tokens", 512),
+                           cfg.get("dtype", "bfloat16"), cfg.get("load_in_4bit", False))
     raise ValueError(f"Unknown generator: {cfg['generator']!r}")

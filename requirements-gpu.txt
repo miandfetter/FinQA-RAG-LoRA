@@ -1,0 +1,11 @@
+# Pinned versions known to work together (PyTorch is installed separately in the Dockerfile).
+transformers==4.55.4
+peft==0.17.1
+trl==0.21.0
+accelerate==1.10.1
+bitsandbytes==0.47.0
+datasets==4.0.0
+numpy<3
+pandas>=2.2
+pyarrow>=17
+pyyaml>=6

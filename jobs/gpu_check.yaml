@@ -1,0 +1,10 @@
+workerPoolSpecs:
+  - machineSpec:
+      machineType: g2-standard-8
+      acceleratorType: NVIDIA_L4
+      acceleratorCount: 1
+    replicaCount: 1
+    containerSpec:
+      imageUri: us-docker.pkg.dev/vertex-ai/training/pytorch-gpu.2-4.py310:latest
+      command: ["bash", "-c"]
+      args: ["nvidia-smi && python -c 'import torch; print(\"CUDA available:\", torch.cuda.is_available(), torch.cuda.get_device_name(0))'"]

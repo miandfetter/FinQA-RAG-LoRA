@@ -31,12 +31,15 @@ from finqa_rag_lora.scoring import score
 
 # Settings that change the results. If any differ from a saved run, resuming is refused.
 RESULT_KEYS = ["generator", "model", "temperature", "max_output_tokens", "thinking_budget", "k"]
+# Extra settings for local models; recorded only when present, so existing Gemini runs still resume.
+LOCAL_MODEL_KEYS = ["adapter", "load_in_4bit", "dtype", "max_new_tokens"]
 MAX_CONSECUTIVE_ERRORS = 10
 
 
 def run_settings(cfg: dict, mode: str, split: str) -> dict:
-    return {**{key: cfg.get(key) for key in RESULT_KEYS}, "mode": mode, "split": split,
-            "system_prompt": SYSTEM_PROMPT}
+    settings = {key: cfg.get(key) for key in RESULT_KEYS}
+    settings.update({key: cfg[key] for key in LOCAL_MODEL_KEYS if key in cfg})
+    return {**settings, "mode": mode, "split": split, "system_prompt": SYSTEM_PROMPT}
 
 
 def contexts_for(questions: pd.DataFrame, mode: str, k: int, retrieval_path: Path) -> dict[str, list[str]]:
@@ -53,15 +56,22 @@ def contexts_for(questions: pd.DataFrame, mode: str, k: int, retrieval_path: Pat
     return {qid: list(retrieved[qid])[:k] for qid in questions["id"]}
 
 
-def answer_one(q, doc_ids: list[str], corpus: pd.DataFrame, generator: Callable[[str], Generation],
-               limiter: RateLimiter, max_retries: int) -> dict:
+def prompt_for(q, doc_ids: list[str], corpus: pd.DataFrame) -> str:
     docs = [{"text": corpus.at[d, "text"], "company_name": corpus.at[d, "company_name"],
              "report_year": corpus.at[d, "report_year"]} for d in doc_ids]
-    prompt = build_prompt(q.question, docs)
+    return build_prompt(q.question, docs)
+
+
+def answer_one(q, doc_ids: list[str], corpus: pd.DataFrame, generator: Callable[[str], Generation],
+               limiter: RateLimiter, max_retries: int) -> dict:
+    prompt = prompt_for(q, doc_ids, corpus)
     limiter.acquire()
     start = time.monotonic()
     gen = call_with_retry(generator, prompt, max_retries=max_retries)
-    latency = time.monotonic() - start
+    return make_row(q, doc_ids, gen, time.monotonic() - start)
+
+
+def make_row(q, doc_ids: list[str], gen: Generation, latency: float) -> dict:
     parsed = parse_answer(gen.text)
     gold = float(q.answer)
     return {
@@ -72,6 +82,31 @@ def answer_one(q, doc_ids: list[str], corpus: pd.DataFrame, generator: Callable[
         "response": gen.text, "finish_reason": gen.finish_reason,
         "latency_s": round(latency, 2), **gen.usage,
     }
+
+
+def run_batched(todo: list, contexts: dict, corpus: pd.DataFrame, generator, batch_size: int,
+                preds_path: Path, n_done: int, n_total: int,
+                checkpoint: Callable[[], None] | None = None, checkpoint_every: int = 10) -> None:
+    """Local GPU models: answer several questions per forward pass, saving after each batch.
+
+    checkpoint: called every `checkpoint_every` batches (the GPU job uses it to copy results to the bucket).
+    """
+    items = [(q, prompt_for(q, contexts[q.id], corpus)) for q in todo]
+    items.sort(key=lambda item: len(item[1]), reverse=True)  # longest first: memory problems show up at once
+    with open(preds_path, "a") as out:
+        for start in range(0, len(items), batch_size):
+            batch = items[start:start + batch_size]
+            t0 = time.monotonic()
+            gens = generator.generate_batch([prompt for _, prompt in batch])
+            per_item = (time.monotonic() - t0) / len(batch)
+            for (q, _), gen in zip(batch, gens):
+                out.write(json.dumps(make_row(q, contexts[q.id], gen, per_item)) + "\n")
+            out.flush()
+            n = start + len(batch)
+            elapsed = time.monotonic() - t0
+            print(f"  {n_done + n}/{n_total} answered  ({elapsed:.1f}s for {len(batch)} questions)", flush=True)
+            if checkpoint and (start // batch_size + 1) % checkpoint_every == 0:
+                checkpoint()
 
 
 def compute_metrics(preds: pd.DataFrame) -> dict:
@@ -110,9 +145,12 @@ def log_to_mlflow(run_name: str, settings: dict, metrics: dict) -> None:
 
 
 def main(config_path: str, mode: str, split: str, limit: int | None, overwrite: bool,
-         generator_factory: Callable[[dict], Callable[[str], Generation]] = make_generator) -> dict | None:
+         generator_factory: Callable[[dict], Callable[[str], Generation]] = make_generator,
+         checkpoint: Callable[[], None] | None = None) -> dict | None:
     cfg = load_config(config_path)
-    questions = pd.read_json(Path(cfg["eval_dir"]) / f"eval_{split}.jsonl", lines=True)
+    # train = ALL train questions (used to distill training data); test/dev = the fixed eval samples
+    q_file = "questions_train.jsonl" if split == "train" else f"eval_{split}.jsonl"
+    questions = pd.read_json(Path(cfg["eval_dir"]) / q_file, lines=True)
     if limit:
         questions = questions.head(limit)
     corpus = pd.read_parquet(cfg["corpus_path"]).set_index("doc_id")
@@ -137,6 +175,11 @@ def main(config_path: str, mode: str, split: str, limit: int | None, overwrite: 
     print(f"{run_name}: {len(done)} already answered, {len(todo)} to go")
 
     generator = generator_factory(cfg) if todo else None
+    if todo and hasattr(generator, "generate_batch"):
+        run_batched(todo, contexts, corpus, generator, cfg.get("batch_size", 4), preds_path,
+                    len(done), len(questions), checkpoint=checkpoint)
+        todo = []  # all answered; fall through to scoring
+
     limiter = RateLimiter(cfg.get("requests_per_minute"))
     failures, consecutive = {}, 0
     with ThreadPoolExecutor(max_workers=cfg.get("concurrency", 4)) as pool, open(preds_path, "a") as out:
@@ -182,7 +225,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--config", default="configs/qa_gemini.yaml")
     parser.add_argument("--mode", default="retrieved", choices=["retrieved", "oracle"])
-    parser.add_argument("--split", default="test", choices=["test", "dev"])
+    parser.add_argument("--split", default="test", choices=["test", "dev", "train"])
     parser.add_argument("--limit", type=int, default=None, help="only the first N questions (smoke test)")
     parser.add_argument("--overwrite", action="store_true", help="delete this run's saved results and start over")
     args = parser.parse_args()

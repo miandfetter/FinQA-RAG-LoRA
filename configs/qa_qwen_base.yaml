@@ -1,0 +1,16 @@
+# The base (not fine-tuned) small model: the "before" number.
+run_name: qwen3_4b_base
+generator: hf
+model: Qwen/Qwen3-4B-Instruct-2507
+adapter: null
+load_in_4bit: false
+dtype: bfloat16
+max_new_tokens: 512
+temperature: 0
+batch_size: 4
+k: 3
+
+corpus_path: data/corpus.parquet
+eval_dir: data
+retrieval_dir: results
+results_dir: results/qa

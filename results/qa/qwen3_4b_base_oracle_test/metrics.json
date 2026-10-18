@@ -1,0 +1,12 @@
+{
+  "n": 300,
+  "accuracy_strict": 0.6533,
+  "accuracy_lenient": 0.69,
+  "format_rate": 0.9567,
+  "sign_flip_errors": 11,
+  "gold_in_context_rate": 1.0,
+  "accuracy_strict_gold_in_context": 0.6533,
+  "mean_latency_s": 6.09,
+  "mean_prompt_tokens": 1333.4,
+  "mean_output_tokens": 161.5
+}
