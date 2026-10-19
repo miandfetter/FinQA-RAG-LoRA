@@ -74,23 +74,6 @@ flowchart LR
 | Qwen3-4B + LoRA | **65.0** | **72.0** |
 | Gemini 3.5 Flash-Lite | 66.0 | 71.0 |
 
-### Paired significance tests
-
-Every model answered the same 300 questions, so the comparison is paired: count the questions only one model got right, then apply an exact McNemar test. The 95% intervals come from a bootstrap over questions.
-
-| Comparison | Mode | Δ (pts) | 95% CI | Only A right / only B right | p |
-|---|---|---:|---|---:|---:|
-| LoRA vs base | retrieved | **+7.0** | [+3.0, +11.3] | 32 / 11 | **0.002** |
-| LoRA vs base | oracle | **+6.7** | [+2.7, +11.0] | 31 / 11 | **0.003** |
-| Gemini vs LoRA | retrieved | +1.0 | [−3.0, +5.0] | 20 / 17 | 0.74 |
-| Gemini vs LoRA | oracle | −1.0 | [−4.7, +2.7] | 15 / 18 | 0.73 |
-
-### What this shows
-
-- **Distillation works.** The gain over the base model is significant in both modes and of similar size, so it comes from better reading and reasoning, not from retrieval.
-- **The student matches the teacher.** The difference from Gemini isn't significant, and any real gap is within about ±5 points. That is "indistinguishable at n = 300", not proof of equality.
-- **Format compliance improved too.** The share of answers with a valid `CALC` line rose from 93.3% to 97.3%, which accounts for part of the gain. The rest is better reasoning.
-- **Retrieval is now the bottleneck.** All three models lose 5–7 points going from the gold page to retrieved pages, even though Recall@3 is 0.92. Two things cost points: questions where the gold page is missing, and distractor pages from the same company in other years. Reranking or k = 5 (Recall@5 0.97) is the clearest next improvement.
 
 ### Retrieval (300 test questions)
 
