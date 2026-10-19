@@ -1,0 +1,14 @@
+# Files NOT uploaded to Cloud Build (keeps the upload small and keeps secrets out of the image).
+.git/
+.gitignore
+.venv/
+.env
+data/
+results/
+mlruns/
+notebooks/
+eval/
+jobs/
+**/__pycache__/
+*.pyc
+.pytest_cache/

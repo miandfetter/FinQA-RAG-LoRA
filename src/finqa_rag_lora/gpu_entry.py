@@ -106,6 +106,35 @@ def run_eval(config_path: str, modes: list[str], split: str, limit: int | None, 
             print(f"Saved {run_name} -> {remote_run}")
 
 
+def run_train(config_path: str, gcs_root: Path) -> None:
+    """LoRA training: data from <bucket>/data/sft/, adapter + logs to <bucket>/adapters/<run_name>/.
+    Checkpoints are copied to the bucket as they're saved, and a rerun resumes from the latest one."""
+    from finqa_rag_lora.train_lora import train
+
+    cfg = yaml.safe_load(Path(config_path).read_text())
+    missing = [k for k in ("run_name", "model", "lora_r", "max_length") if k not in cfg]
+    if missing:
+        raise ValueError(f"{config_path} is missing required settings {missing}. Is it the right file?")
+    check_gpu({**cfg, "generator": "hf"})
+
+    work = Path(tempfile.mkdtemp(prefix="finqa_train_"))
+    for name in ("sft_train.jsonl", "sft_val.jsonl"):
+        if not copy_if_exists(gcs_root / "data/sft" / name, work / name):
+            raise FileNotFoundError(f"{gcs_root}/data/sft/{name} not found: upload the build_sft output first.")
+    local_out, remote_out = work / "out", gcs_root / "adapters" / cfg["run_name"]
+    if copy_if_exists(remote_out, local_out):
+        print(f"Found earlier output in {remote_out}; will resume from its latest checkpoint")
+
+    def save():
+        copy_if_exists(local_out, remote_out)
+        print(f"  synced checkpoint -> {remote_out}", flush=True)
+
+    try:
+        train(cfg, work / "sft_train.jsonl", work / "sft_val.jsonl", local_out, on_save=save)
+    finally:
+        save()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="task", required=True)
@@ -115,9 +144,14 @@ def main() -> None:
     ev.add_argument("--split", default="test", choices=["test", "dev"])
     ev.add_argument("--limit", type=int, default=None)
     ev.add_argument("--gcs-root", required=True, help="mounted bucket path, e.g. /gcs/finqa-rag-lora-data")
+    tr = sub.add_parser("train", help="LoRA fine-tuning on the distilled examples")
+    tr.add_argument("--config", required=True)
+    tr.add_argument("--gcs-root", required=True, help="mounted bucket path, e.g. /gcs/finqa-rag-lora-data")
     args = parser.parse_args()
     if args.task == "eval":
         run_eval(args.config, args.modes, args.split, args.limit, Path(args.gcs_root))
+    elif args.task == "train":
+        run_train(args.config, Path(args.gcs_root))
 
 
 if __name__ == "__main__":

@@ -1,0 +1,12 @@
+
+# generated
+__pycache__/
+*.pyc
+mlflow.db
+mlruns/
+.pytest_cache/
+
+# data and large outputs
+data/
+results/
+.env

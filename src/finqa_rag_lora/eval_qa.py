@@ -146,18 +146,24 @@ def log_to_mlflow(run_name: str, settings: dict, metrics: dict) -> None:
 
 def main(config_path: str, mode: str, split: str, limit: int | None, overwrite: bool,
          generator_factory: Callable[[dict], Callable[[str], Generation]] = make_generator,
-         checkpoint: Callable[[], None] | None = None) -> dict | None:
+         checkpoint: Callable[[], None] | None = None,
+         sample: int | None = None, seed: int = 42) -> dict | None:
     cfg = load_config(config_path)
     # train = ALL train questions (used to distill training data); test/dev = the fixed eval samples
     q_file = "questions_train.jsonl" if split == "train" else f"eval_{split}.jsonl"
     questions = pd.read_json(Path(cfg["eval_dir"]) / q_file, lines=True)
+    if sample:  # a RANDOM subset (fixed seed, so reruns resume the same subset); --limit takes the first N
+        if sample > len(questions):
+            raise ValueError(f"--sample {sample} is larger than the {len(questions)} available questions")
+        questions = questions.sample(n=sample, random_state=seed).sort_index().reset_index(drop=True)
     if limit:
         questions = questions.head(limit)
     corpus = pd.read_parquet(cfg["corpus_path"]).set_index("doc_id")
     contexts = contexts_for(questions, mode, cfg["k"],
                             Path(cfg["retrieval_dir"]) / f"retrieval_{split}.jsonl")
 
-    run_name = f"{cfg['run_name']}_{mode}_{split}" + (f"_limit{limit}" if limit else "")
+    run_name = (f"{cfg['run_name']}_{mode}_{split}" + (f"_sample{sample}" if sample else "")
+                + (f"_limit{limit}" if limit else ""))
     run_dir = Path(cfg["results_dir"]) / run_name
     settings = run_settings(cfg, mode, split)
 
@@ -227,6 +233,9 @@ if __name__ == "__main__":
     parser.add_argument("--mode", default="retrieved", choices=["retrieved", "oracle"])
     parser.add_argument("--split", default="test", choices=["test", "dev", "train"])
     parser.add_argument("--limit", type=int, default=None, help="only the first N questions (smoke test)")
+    parser.add_argument("--sample", type=int, default=None,
+                        help="a random subset of N questions (fixed seed), e.g. to distill only part of train")
+    parser.add_argument("--seed", type=int, default=42, help="seed for --sample")
     parser.add_argument("--overwrite", action="store_true", help="delete this run's saved results and start over")
     args = parser.parse_args()
-    main(args.config, args.mode, args.split, args.limit, args.overwrite)
+    main(args.config, args.mode, args.split, args.limit, args.overwrite, sample=args.sample, seed=args.seed)

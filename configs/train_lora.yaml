@@ -1,0 +1,25 @@
+# LoRA fine-tuning of Qwen3-4B on the distilled examples (data/sft/ in the bucket).
+# Output: <bucket>/adapters/<run_name>/adapter (the LoRA weights) + training logs.
+run_name: qwen3_4b_lora_r16
+model: Qwen/Qwen3-4B-Instruct-2507
+dtype: bfloat16              # float16 on a T4
+load_in_4bit: false          # true = QLoRA (needed on a 16 GB T4; not on the 24 GB L4)
+
+# LoRA: small trainable matrices added to every attention and MLP projection
+lora_r: 16
+lora_alpha: 32
+lora_dropout: 0.05
+target_modules: [q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj]
+
+# Prompts are ~3.6k tokens; longer examples are dropped (never truncated: that would cut off the reply).
+max_length: 5120
+epochs: 2
+batch_size: 1
+grad_accum: 16               # effective batch of 16 examples per update
+learning_rate: 2.0e-4
+warmup_ratio: 0.03
+gradient_checkpointing: true # trades some speed for much less GPU memory
+logging_steps: 10
+eval_steps: 25               # validation loss every 25 updates
+save_steps: 25               # checkpoint (copied to the bucket) every 25 updates
+seed: 42

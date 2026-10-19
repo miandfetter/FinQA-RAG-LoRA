@@ -47,19 +47,24 @@ def build_corpus(df: pd.DataFrame) -> pd.DataFrame:
     return corpus
 
 
-def sample_eval_set(df: pd.DataFrame, split: str, n: int, seed: int) -> pd.DataFrame:
-    """A fixed random sample of questions from one split."""
+def questions_for_split(df: pd.DataFrame, split: str) -> pd.DataFrame:
+    """All usable questions in one split, in the format the rest of the pipeline expects."""
     pool = df[df["split"] == split]
     pool = pool[pool["question"].fillna("").str.strip() != ""]  # a few questions in the dataset are empty
-    if n > len(pool):
-        raise ValueError(f"Asked for {n} questions but split '{split}' only has {len(pool)}")
-    sample = pool.sample(n=n, random_state=seed)
     return (
-        sample.rename(columns={"program_answer": "answer", "context_id": "gold_doc_id"})
+        pool.rename(columns={"program_answer": "answer", "context_id": "gold_doc_id"})
         [["id", "question", "answer", "gold_doc_id", "company_name", "report_year"]]
         .reset_index(drop=True)
         .assign(report_year=lambda d: d["report_year"].astype(str))
     )
+
+
+def sample_eval_set(df: pd.DataFrame, split: str, n: int, seed: int) -> pd.DataFrame:
+    """A fixed random sample of questions from one split."""
+    pool = questions_for_split(df, split)
+    if n > len(pool):
+        raise ValueError(f"Asked for {n} questions but split '{split}' only has {len(pool)}")
+    return pool.sample(n=n, random_state=seed).reset_index(drop=True)
 
 
 def save_jsonl(df: pd.DataFrame, path: Path) -> None:
@@ -81,6 +86,8 @@ def main(config_path: str) -> None:
     dev_set = sample_eval_set(df, "dev", cfg["n_dev"], cfg["seed"])
     save_jsonl(test_set, out / "eval_test.jsonl")
     save_jsonl(dev_set, out / "eval_dev.jsonl")
+    train_questions = questions_for_split(df, "train")  # ALL train questions: source of LoRA training data
+    save_jsonl(train_questions, out / "questions_train.jsonl")
 
     # Small, committed copy of the test IDs so anyone can reproduce the eval set.
     ids_path = Path(cfg["test_ids_path"])
@@ -92,6 +99,7 @@ def main(config_path: str) -> None:
     print(f"corpus pages:     {len(corpus)}  -> {out / 'corpus.parquet'}")
     print(f"test sample:      {len(test_set)}  -> {out / 'eval_test.jsonl'}")
     print(f"dev sample:       {len(dev_set)}  -> {out / 'eval_dev.jsonl'}")
+    print(f"train questions:  {len(train_questions)}  -> {out / 'questions_train.jsonl'}")
     print(f"test IDs:         {ids_path}")
 
 

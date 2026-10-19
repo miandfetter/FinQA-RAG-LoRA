@@ -1,0 +1,17 @@
+# Qwen3-4B + the trained LoRA adapter: the "after" number.
+# Identical to qa_qwen_base.yaml except run_name and adapter.
+run_name: qwen3_4b_lora_r16
+generator: hf
+model: Qwen/Qwen3-4B-Instruct-2507
+adapter: /gcs/finqa-rag-lora-data/adapters/qwen3_4b_lora_r16/adapter
+load_in_4bit: false
+dtype: bfloat16
+max_new_tokens: 512
+temperature: 0
+batch_size: 4
+k: 3
+
+corpus_path: data/corpus.parquet
+eval_dir: data
+retrieval_dir: results
+results_dir: results/qa

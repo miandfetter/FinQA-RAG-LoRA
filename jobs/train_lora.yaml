@@ -1,0 +1,15 @@
+# LoRA training job. Submit with:
+#   gcloud ai custom-jobs create --region=<REGION> --display-name=train-lora --config=jobs/train_lora.yaml
+workerPoolSpecs:
+  - machineSpec:
+      machineType: g2-standard-8
+      acceleratorType: NVIDIA_L4
+      acceleratorCount: 1
+    replicaCount: 1
+    diskSpec:
+      bootDiskType: pd-ssd
+      bootDiskSizeGb: 100
+    containerSpec:
+      imageUri: us-central1-docker.pkg.dev/finqa-rag-lora/finqa/finqa-gpu:v4
+      args: ["train", "--config", "/gcs/finqa-rag-lora-data/configs/train_lora.yaml",
+             "--gcs-root", "/gcs/finqa-rag-lora-data"]

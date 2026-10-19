@@ -1,0 +1,16 @@
+# Evaluate Qwen + LoRA adapter on the 300 test questions (retrieved and oracle). Submit with:
+#   gcloud ai custom-jobs create --region=<REGION> --display-name=eval-qwen-lora --config=jobs/eval_qwen_lora.yaml
+workerPoolSpecs:
+  - machineSpec:
+      machineType: g2-standard-8
+      acceleratorType: NVIDIA_L4
+      acceleratorCount: 1
+    replicaCount: 1
+    diskSpec:
+      bootDiskType: pd-ssd
+      bootDiskSizeGb: 100
+    containerSpec:
+      imageUri: us-central1-docker.pkg.dev/finqa-rag-lora/finqa/finqa-gpu:v4
+      args: ["eval", "--config", "/gcs/finqa-rag-lora-data/configs/qa_qwen_lora.yaml",
+             "--modes", "retrieved", "oracle",
+             "--gcs-root", "/gcs/finqa-rag-lora-data"]

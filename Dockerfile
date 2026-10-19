@@ -1,7 +1,7 @@
 # GPU image for Qwen evaluation and LoRA training jobs.
 # Built in the cloud with Cloud Build (no Docker needed on your laptop):
 #   gcloud builds submit --region=us-central1 --machine-type=e2-highcpu-8 \
-#     --tag us-central1-docker.pkg.dev/finqa-rag-lora/finqa/finqa-gpu:v2 .
+#     --tag us-central1-docker.pkg.dev/finqa-rag-lora/finqa/finqa-gpu:v4 .
 #
 # Based on NVIDIA's CUDA image: it declares NVIDIA_VISIBLE_DEVICES / NVIDIA_DRIVER_CAPABILITIES,
 # which tell the GPU machine to give the container access to its driver. Without them (as in a plain
@@ -18,8 +18,10 @@ ENV DEBIAN_FRONTEND=noninteractive \
     TOKENIZERS_PARALLELISM=false
 
 # Ubuntu 24.04's Python is 3.12, matching the project.
+# gcc + python3-dev: Triton (used by bitsandbytes, which PEFT imports) compiles a small C helper
+# on first use; without a compiler, LoRA setup fails with "Failed to find C compiler".
 RUN apt-get update \
- && apt-get install -y --no-install-recommends python3 python3-venv python3-pip \
+ && apt-get install -y --no-install-recommends python3 python3-venv python3-pip gcc python3-dev \
  && rm -rf /var/lib/apt/lists/* \
  && python3 -m venv /opt/venv
 ENV PATH=/opt/venv/bin:$PATH
