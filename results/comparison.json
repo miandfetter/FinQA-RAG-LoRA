@@ -1,0 +1,124 @@
+{
+  "accuracy": [
+    {
+      "run": "qwen3_4b_base",
+      "mode": "retrieved",
+      "n": 300,
+      "strict": 57.99999999999999,
+      "lenient": 61.33333333333333,
+      "format_ok": 93.33333333333333
+    },
+    {
+      "run": "qwen3_4b_lora_r16",
+      "mode": "retrieved",
+      "n": 300,
+      "strict": 65.0,
+      "lenient": 68.0,
+      "format_ok": 97.33333333333334
+    },
+    {
+      "run": "gemini_3.5_flash_lite",
+      "mode": "retrieved",
+      "n": 300,
+      "strict": 66.0,
+      "lenient": 68.66666666666667,
+      "format_ok": 97.0
+    },
+    {
+      "run": "qwen3_4b_base",
+      "mode": "oracle",
+      "n": 300,
+      "strict": 65.33333333333333,
+      "lenient": 69.0,
+      "format_ok": 95.66666666666667
+    },
+    {
+      "run": "qwen3_4b_lora_r16",
+      "mode": "oracle",
+      "n": 300,
+      "strict": 72.0,
+      "lenient": 75.33333333333333,
+      "format_ok": 98.66666666666667
+    },
+    {
+      "run": "gemini_3.5_flash_lite",
+      "mode": "oracle",
+      "n": 300,
+      "strict": 71.0,
+      "lenient": 73.66666666666667,
+      "format_ok": 98.0
+    }
+  ],
+  "paired": {
+    "retrieved": {
+      "qwen3_4b_lora_r16 vs qwen3_4b_base": {
+        "n": 300,
+        "diff": 0.07,
+        "ci95": [
+          0.03,
+          0.11333333333333333
+        ],
+        "only_a": 11,
+        "only_b": 32,
+        "p_value": 0.001913961001264397
+      },
+      "gemini_3.5_flash_lite vs qwen3_4b_base": {
+        "n": 300,
+        "diff": 0.08,
+        "ci95": [
+          0.03666666666666667,
+          0.12333333333333334
+        ],
+        "only_a": 12,
+        "only_b": 36,
+        "p_value": 0.0007172696733945827
+      },
+      "gemini_3.5_flash_lite vs qwen3_4b_lora_r16": {
+        "n": 300,
+        "diff": 0.01,
+        "ci95": [
+          -0.03,
+          0.05
+        ],
+        "only_a": 17,
+        "only_b": 20,
+        "p_value": 0.7428293587290682
+      }
+    },
+    "oracle": {
+      "qwen3_4b_lora_r16 vs qwen3_4b_base": {
+        "n": 300,
+        "diff": 0.06666666666666667,
+        "ci95": [
+          0.02666666666666667,
+          0.11
+        ],
+        "only_a": 11,
+        "only_b": 31,
+        "p_value": 0.002887247974285856
+      },
+      "gemini_3.5_flash_lite vs qwen3_4b_base": {
+        "n": 300,
+        "diff": 0.056666666666666664,
+        "ci95": [
+          0.02,
+          0.09666666666666666
+        ],
+        "only_a": 9,
+        "only_b": 26,
+        "p_value": 0.0059881205670535564
+      },
+      "gemini_3.5_flash_lite vs qwen3_4b_lora_r16": {
+        "n": 300,
+        "diff": -0.01,
+        "ci95": [
+          -0.04666666666666667,
+          0.02666666666666667
+        ],
+        "only_a": 18,
+        "only_b": 15,
+        "p_value": 0.7283324808813632
+      }
+    }
+  }
+}
